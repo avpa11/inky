@@ -18,3 +18,18 @@ dist/
 *.log
 
 !inky_home/data/french.sqlite3
+
+# Private state and credential material never belong in a public checkout.
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+.ssh/
+credentials.json
+token.json

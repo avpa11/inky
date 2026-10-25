@@ -215,7 +215,12 @@ GitHub's 60-day repository-inactivity cutoff even when you do not touch the repo
 The activity step runs before source downloads/builds, so provider failures do not
 stop the keep-alive. It uses the workflow's built-in, short-lived token; no personal
 token or Pi credentials are stored. Application files and learning history are not
-part of the automated commit. Source downloads retry temporary failures up to three times. Build failures remain visible in Actions and leave
+part of the automated commit. Lexique 3.83 is a fixed reference release: builds download the compressed,
+versioned snapshot from the `lexique383-source-v1` GitHub release instead of relying
+on the intermittently unreachable Lexique server. Both the compressed archive and
+original TSV have pinned SHA-256 checksums; attribution and the original source URL
+are preserved. Kaikki and Tatoeba still refresh from their official exports.
+Source downloads retry temporary failures up to three times. Build failures remain visible in Actions and leave
 the previous release available. Normal GitHub availability and repository permissions
 still apply; manually disabling Actions or blocking its commits will stop the schedule.
 GitHub documents the inactivity rule at
@@ -234,3 +239,17 @@ eligible words makes them available automatically.
 
 Only French **data** updates automatically. Application code still requires the normal
 Mac deployment script after editing or pulling changes.
+
+## Public repository and security
+
+See [SECURITY.md](SECURITY.md) for the intended LAN boundary, privacy, audit scope
+and reporting. Runtime state (`var*`, user settings, cached weather, learning history),
+keys, environment files and logs are excluded from Git. The one intentionally tracked
+SQLite file is the public, attributed French catalog. Public commit author information
+and public dataset contributor attribution remain visible.
+
+Use Python 3.11 or newer. Pillow 13 or newer is required for upstream security fixes.
+The web app accepts local IP literals and its own hostname; arbitrary Host headers are
+rejected to prevent browser DNS rebinding. For a deliberate custom LAN hostname, set
+`INKY_TRUSTED_HOSTS=inky.home.example` in the service environment and restart it.
+This hostname setting does not add authentication or make internet exposure safe.

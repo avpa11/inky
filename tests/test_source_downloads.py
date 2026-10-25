@@ -1,4 +1,6 @@
 import io
+import gzip
+import hashlib
 from pathlib import Path
 import tempfile
 import unittest
@@ -28,6 +30,26 @@ class SourceDownloadTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), b'{}')
             self.assertEqual(metadata['bytes'], 2)
             self.assertFalse(list(root.glob('*.part')))
+
+    def test_lexique_mirror_verifies_archive_and_original_bytes(self):
+        original = b'ortho\tlemme\nbonjour\tbonjour\n'
+        compressed = gzip.compress(original, mtime=0)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch('scripts.fetch_french_sources.urlopen', return_value=Response(compressed)), patch('scripts.fetch_french_sources.LEXIQUE_GZIP_SHA256', hashlib.sha256(compressed).hexdigest()), patch('scripts.fetch_french_sources.LEXIQUE_SHA256', hashlib.sha256(original).hexdigest()):
+                _, metadata = fetch('lexique', root, True)
+            self.assertEqual((root/'lexique.tsv').read_bytes(), original)
+            self.assertIn('github.com/avpa11/inky/releases/', metadata['download_url'])
+            self.assertIn('lexique.org', metadata['url'])
+            # A corrupt mirror response must never replace the verified previous TSV.
+            with patch('scripts.fetch_french_sources.urlopen', return_value=Response(b'corrupt')):
+                with self.assertRaisesRegex(ValueError, 'archive checksum'):fetch('lexique', root, True)
+            self.assertEqual((root/'lexique.tsv').read_bytes(), original)
+            self.assertFalse(list(root.glob('*.part')))
+            # Even a correctly hashed archive must contain the expected original TSV.
+            with patch('scripts.fetch_french_sources.urlopen', return_value=Response(compressed)), patch('scripts.fetch_french_sources.LEXIQUE_GZIP_SHA256', hashlib.sha256(compressed).hexdigest()):
+                with self.assertRaisesRegex(ValueError, 'TSV checksum'):fetch('lexique', root, True)
+            self.assertEqual((root/'lexique.tsv').read_bytes(), original)
 
     def test_permanent_failure_keeps_old_export_and_does_not_retry(self):
         with tempfile.TemporaryDirectory() as directory:
