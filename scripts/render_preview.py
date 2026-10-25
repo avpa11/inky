@@ -31,6 +31,13 @@ def main():
         output = Path(__file__).resolve().parents[1] / 'docs' / 'preview.png'
         output.parent.mkdir(exist_ok=True)
         sheet.save(output)
+        credits = ['# Preview attribution', '', 'The weather is sample data. French content comes from the bundled offline catalog.', '']
+        for card in snapshot['lesson']['cards']:
+            credits += ['## ' + card['kind'], '']
+            for source in card.get('sources', []):
+                credits.append('- [' + source['name'] + '](' + source['url'] + ') · [' + source['license'] + '](' + source['license_url'] + ')')
+            credits.append('')
+        output.with_name('preview-sources.md').write_text('\n'.join(credits))
         print(output)
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "inky-home"
-version = "0.4.0"
+version = "0.5.0"
 description = "A small, local home dashboard for Inky Impression"
 requires-python = ">=3.9"
 dependencies = ["Flask>=2.3,<4", "Pillow>=10.1,<13", "waitress>=3,<4", "tzdata>=2024.1", "certifi>=2024.2.2"]
@@ -19,4 +19,4 @@ inky-home = "inky_home.__main__:main"
 include = ["inky_home*"]
 
 [tool.setuptools.package-data]
-inky_home = ["templates/*.html", "static/*", "data/*.json"]
+inky_home = ["templates/*.html", "static/*", "data/*.sqlite3", "data/*.md"]

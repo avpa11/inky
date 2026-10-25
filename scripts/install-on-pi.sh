@@ -16,12 +16,22 @@ free_kb=$(df -Pk "$HOME" | awk 'NR==2 {print $4}')
 if (( free_kb < 300000 )); then echo 'At least 300 MB free disk is required.' >&2; exit 1; fi
 python3 -m venv --system-site-packages "$release/.venv"
 "$release/.venv/bin/python" -m pip install --no-cache-dir "$release[pi]"
-"$release/.venv/bin/python" -c 'import inky, gpiod, gpiodevice, waitress; from inky_home.lessons import LESSONS; assert len(LESSONS) == 90'
+"$release/.venv/bin/python" -c 'import inky, gpiod, gpiodevice, waitress; from inky_home.lessons import CATALOG; print("French daily sets:", CATALOG.validate())'
 mkdir -p "$base/data" "$HOME/.config/systemd/user"
 # Install a systemd USER service; preserve the previous release for rollback.
 python3 - "$release" "$base" <<'PY'
-import os, pathlib, sys
+import os, pathlib, sys, sqlite3
+from datetime import datetime, timezone
 release, base = map(pathlib.Path, sys.argv[1:])
+state = base / 'data/home.sqlite3'
+if state.is_file():
+    backups = base / 'data/backups'
+    backups.mkdir(exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
+    destination = backups / f'home-before-{stamp}.sqlite3'
+    with sqlite3.connect(state.as_uri() + '?mode=ro', uri=True) as source, sqlite3.connect(destination) as backup:
+        source.backup(backup)
+    print(f'Saved state backup: {destination}')
 current = base / 'current'
 if current.is_symlink():
     previous = base / 'previous'

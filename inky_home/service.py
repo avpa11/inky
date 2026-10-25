@@ -208,7 +208,7 @@ class Dashboard:
         with self.lock:
             day = self.state["browse_day"] or self.day()
             return copy.deepcopy({"settings": self.settings, "selection": self.state,
-                "lesson": lessons.lesson_for(day, self.progress["anchor"]), "lesson_day": day,
+                "lesson": self.store.daily_lesson(day, lambda: lessons.lesson_for(day, self.progress["anchor"])), "lesson_day": day,
                 "today": self.day(), "first_day": self.progress["anchor"], "weather": self.usable_cache(),
                 "stale": self.is_stale(), "sample": self.sample, "now": self.clock().isoformat(),
                 "mode": self.display.mode, "updating": self.updating,

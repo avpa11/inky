@@ -16,3 +16,5 @@ dist/
 *.sqlite3
 *.sqlite3-*
 *.log
+
+!inky_home/data/french.sqlite3

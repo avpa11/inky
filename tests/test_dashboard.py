@@ -11,8 +11,9 @@ from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 from inky_home.display import PreviewDisplay, InkyDisplay
-from inky_home.lessons import LESSONS, learning_day, lesson_for
+from inky_home.lessons import CATALOG, learning_day, lesson_for
 from inky_home.render import render, temp
+from inky_home import render as layouts
 from inky_home.service import Dashboard, RateLimited
 from inky_home.store import Store
 from inky_home.weather import SampleWeatherClient, normalize, validate_city
@@ -219,17 +220,25 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(self.client.get('/api/cities?q=San').status_code, 502)
 
     def test_all_lessons_and_weather_variants_render(self):
-        self.assertEqual(len(LESSONS), 90)
-        self.assertEqual(len({x["cards"][0]["example"] for x in LESSONS}), 90)
-        self.assertEqual(len({x["cards"][2]["example"] for x in LESSONS}), 90)
+        self.assertGreaterEqual(CATALOG.validate(), 365)
+        lessons = [CATALOG.lesson_at(i) for i in range(CATALOG.count)]
+        self.assertEqual(len({x["stable_id"] for x in lessons}), CATALOG.count)
+        self.assertEqual(len({x["cards"][0]["example"] for x in lessons}), CATALOG.count)
+        self.assertEqual(len({x["cards"][1]["example"] for x in lessons}), CATALOG.count)
         snapshot = self.home.snapshot()
         snapshot["selection"]["app"] = "french"
-        for lesson in LESSONS:
-            snapshot["lesson"] = lesson
-            for index in range(3):
-                snapshot["selection"]["card"] = index
-                image = render(snapshot)
-                self.assertEqual(image.size, (600,400))
+        original = layouts.text_block
+        def fitting(draw, text, box, size=22, minimum=14, bold=False, fill=layouts.INK):
+            lines = layouts.wrap(draw, text, layouts.font(minimum, bold), box[2])
+            self.assertLessEqual(len(lines) * (minimum + 5), box[3], str(text))
+            return original(draw, text, box, size, minimum, bold, fill)
+        with patch.object(layouts, 'text_block', fitting):
+            for lesson in lessons:
+                snapshot["lesson"] = lesson
+                for index in range(3):
+                    snapshot["selection"]["card"] = index
+                    image = render(snapshot)
+                    self.assertEqual(image.size, (600,400))
         self.configured()
         snapshot = self.home.snapshot()
         for view in ('today', 'three_days'):
@@ -316,6 +325,22 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual(colors, set(COLORS))
             title_colors = {color for _, color in image.crop((24,89,576,156)).getcolors(1_000_000)}
             self.assertEqual(title_colors, {(0,0,0),(255,255,255)})
+
+
+
+    def test_french_source_metadata_and_daily_assignment_are_preserved(self):
+        self.home.select('french')
+        self.home.action('D')
+        before = self.home.snapshot()
+        with patch('inky_home.lessons.lesson_for', side_effect=AssertionError('Pinned day must not be reselected')):
+            restored = Dashboard(self.store, PreviewDisplay(), SampleWeatherClient(), True, lambda:self.now)
+            self.assertEqual(restored.snapshot()['lesson'], before['lesson'])
+            self.assertEqual(restored.state['card'], 1)
+        response = self.client.get('/api/french/sources')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual({x['id'] for x in response.json['sources']}, {'kaikki','lexique','french','english','links'})
+        self.assertIn(b'CC BY-SA 4.0', self.client.get('/french/sources').data)
+        self.assertTrue(before['lesson']['cards'][0]['sources'])
 
 
 if __name__ == '__main__':

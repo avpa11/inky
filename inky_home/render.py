@@ -164,7 +164,7 @@ def weather_screen(draw, snapshot):
 def french_screen(draw, snapshot):
     card_index = snapshot["selection"]["card"]
     card = snapshot["lesson"]["cards"][card_index]
-    heading(draw, "UN PEU DE FRANÇAIS", f"B1 · {card_index + 1} / 3")
+    heading(draw, "UN PEU DE FRANÇAIS", f"~B1 · {card_index + 1} / 3")
     # French tricolor and a three-step card-position indicator.
     for left, color in ((24, BLUE), (42, "white"), (60, RED)):
         draw.rectangle((left, 77, left+17, 83), fill=color)
@@ -180,7 +180,9 @@ def french_screen(draw, snapshot):
     draw.rectangle((18, 215, 23, 281), fill=RED)
     text_block(draw, card["example"], (28, 209, 544, 42), 20, 15, bold=True)
     text_block(draw, card["translation"], (28, 254, 544, 34), 17, 12)
-    text_block(draw, card["note"], (24, 300, 552, 57), 17, 12)
+    text_block(draw, card["note"], (24, 300, 552, 45), 17, 12)
+    if card.get("credit"):
+        draw.text((24, 350), card["credit"], font=font(10, True), fill=INK)
     footer(draw, "Previous", "Next")
 
 
