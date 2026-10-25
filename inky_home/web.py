@@ -43,11 +43,11 @@ def create_app(dashboard):
 
     @app.get("/french/sources")
     def french_sources():
-        return render_template('french_sources.html', sources=CATALOG.sources(), metadata=CATALOG.metadata)
+        return render_template('french_sources.html', sources=dashboard.catalog.sources(), metadata=dashboard.catalog.metadata)
 
     @app.get("/api/french/sources")
     def french_sources_api():
-        return jsonify(sources=CATALOG.sources(), metadata=CATALOG.metadata)
+        return jsonify(sources=dashboard.catalog.sources(), metadata=dashboard.catalog.metadata)
 
     @app.get("/api/status")
     def status():
@@ -88,6 +88,18 @@ def create_app(dashboard):
             return jsonify(results=search_cities(query))
         except Exception:
             return jsonify(error="City search is unavailable. Check the Pi's internet connection and try again."), 502
+
+    @app.post('/api/french/explore')
+    def explore():
+        body()
+        dashboard.explore()
+        return jsonify(ok=True)
+
+    @app.post('/api/french/update')
+    def update_catalog():
+        body()
+        dashboard.catalog_event.set()
+        return jsonify(ok=True)
 
     @app.post("/api/french/day")
     def browse():

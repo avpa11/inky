@@ -191,3 +191,38 @@ This app is for a **trusted home LAN** without login. Keep it off public network
 
 - [Pimoroni Inky installation](https://github.com/pimoroni/inky#installation) and [Spectra 6 button example](https://github.com/pimoroni/inky/blob/main/examples/spectra6/buttons.py).
 - [Open-Meteo forecast API](https://open-meteo.com/en/docs), [geocoding API](https://open-meteo.com/en/docs/geocoding-api), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Geocoding uses GeoNames data. Open-Meteo's free endpoint is for noncommercial use.
+
+## Automatic French content and exploration
+
+Use **Explore a new word** in the French panel for extra vocabulary. **Daily cards**
+returns to the pinned daily set. In Explore mode, C goes back a card; D moves through
+Vocabulary, Context and Usage, then selects another unseen word. The web control can
+also select a new word immediately. The current exploration and card survive restarts.
+Daily rollover returns to daily mode.
+
+The Pi records assigned words locally in `data/home.sqlite3` (including daily sets).
+Identity uses the case-folded lemma, so changed examples, senses or ordering do not
+make the same word appear unseen again. This tracks assignment, not mastery. Progress
+is never uploaded. Existing daily assignments are migrated and preserved.
+
+`.github/workflows/french-catalog.yml` rebuilds from official source exports on the
+3rd of each month at 09:23 UTC, or with **Run workflow** on GitHub. It publishes up to
+10,000 eligible sets (the actual matching count can be smaller) as a release with
+attribution and a SHA-256 manifest. No Pi credentials are in GitHub. The workflow
+publishes data releases only; it does not commit to main. GitHub may disable scheduled
+workflows after 60 days without repository activity; re-enable it in Actions if needed.
+Build failures are visible in Actions and leave the previous release available.
+
+The Pi checks GitHub at startup and then daily, on a separate worker. **Check for new
+content** queues an immediate check. Downloads have timeouts and a 20 MiB limit; the
+checksum, SQLite schema, source references and all lesson records are checked before
+activation. The previous download is retained, and the bundled catalog is the offline
+startup fallback. Today's pinned cards and learning history survive catalog changes.
+
+The source datasets are finite. Updates can add words but cannot guarantee endless new
+material. At exhaustion, exploration says the catalog is complete; daily lessons become
+labelled review sets. Existing history remains available. A later catalog with new
+eligible words makes them available automatically.
+
+Only French **data** updates automatically. Application code still requires the normal
+Mac deployment script after editing or pulling changes.

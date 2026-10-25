@@ -24,6 +24,7 @@ class LessonCatalog:
         if not self.path.is_file():
             raise RuntimeError('French catalog is missing. Run scripts/build_french_db.py on your Mac.')
         db = sqlite3.connect(self.path.as_uri() + '?mode=ro&immutable=1', uri=True)
+        db.execute('PRAGMA trusted_schema=OFF')
         db.row_factory = sqlite3.Row
         return db
 
@@ -59,6 +60,15 @@ class LessonCatalog:
         with self.connect() as db:
             return [dict(row) for row in db.execute('SELECT * FROM sources ORDER BY id')]
 
+    @cached_property
+    def word_indices(self):
+        with self.connect() as db:
+            return [(i, row[0].casefold()) for i, row in enumerate(db.execute(
+                "SELECT e.lemma FROM lessons l JOIN entries e ON e.id=l.entry_id ORDER BY l.id"))]
+
+    def identities(self):
+        return self.word_indices
+
     def lesson_at(self, index):
         offset = max(0, index) % self.count
         with self.connect() as db:
@@ -84,7 +94,7 @@ class LessonCatalog:
                     'example': sentence['french'], 'translation': sentence['english'], 'note': note,
                     'sources': references, 'credit': f'Tatoeba #{sentence["id"]} · Wiktionary / Lexique · Sources in web app'}
         return {'id': entry['lesson_id'], 'stable_id': entry['stable_id'], 'theme': word,
-                'level': 'Intermediate estimate', 'catalog_built_at': self.metadata['built_at'],
+                'lexeme_id': word.casefold(), 'level': 'Intermediate estimate', 'catalog_built_at': self.metadata['built_at'],
                 'cards': [
                     card('Vocabulary', title, entry['definition'], example,
                          f'Frequency rank {entry["frequency_rank"]:,}; approximate intermediate selection.'),

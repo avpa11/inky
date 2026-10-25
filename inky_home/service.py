@@ -23,6 +23,12 @@ class Dashboard:
     """State under one short-held lock; network and panel I/O run on separate workers."""
     def __init__(self, store, display, weather, sample=False, clock=None):
         self.store, self.display, self.weather = store, display, weather
+        self.catalog = lessons.CATALOG
+        from .catalog_updates import installed_catalog
+        self.catalog = installed_catalog(store.directory, self.catalog)
+        self.catalog_status = store.get('catalog_status', {})
+        self.catalog_event = threading.Event()
+        self.exploration = store.get('exploration')
         self.sample = sample
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.lock = threading.RLock()
@@ -67,7 +73,7 @@ class Dashboard:
         with self.lock:
             self.touch()
         for name, target in (("display", self.display_loop), ("weather", self.weather_loop),
-                             ("scheduler", self.scheduler_loop)):
+                             ("scheduler", self.scheduler_loop), ("catalog", self.catalog_loop)):
             thread = threading.Thread(name=name, target=target, daemon=True)
             thread.start()
             self.threads.append(thread)
@@ -76,6 +82,7 @@ class Dashboard:
         self.stop.set()
         self.changed.set()
         self.fetch_event.set()
+        self.catalog_event.set()
         if self.buttons:
             self.buttons.close()
         for thread in self.threads:
@@ -88,7 +95,7 @@ class Dashboard:
             day = self.day()
             if day != self.progress["day"]:
                 self.progress["day"] = day
-                self.state.update(card=0, browse_day=None)
+                self.state.update(card=0, browse_day=None, french_mode="daily")
                 self.persist()
                 self.touch()
             if self.settings["city"] and not self.fetch_requested and not self.fetching:
@@ -139,6 +146,9 @@ class Dashboard:
                         raise RateLimited("Please wait one minute between manual weather updates")
                     self.last_manual = now
                     self.queue_fetch()
+            elif self.state.get('french_mode') == 'explore' and button == 'D' and self.state['card'] == 2:
+                self.explore()
+                return
             else:
                 self.state["card"] = (self.state["card"] + (-1 if button == "C" else 1)) % 3
             self.persist()
@@ -191,9 +201,54 @@ class Dashboard:
                     raise ValueError("Invalid lesson date") from None
                 if not self.progress["anchor"] <= day <= self.day():
                     raise ValueError("Choose a date between your first lesson and today")
-            self.state.update(app="french", browse_day=day, card=0)
+            self.state.update(app="french", browse_day=day, card=0, french_mode="daily")
             self.persist()
             self.touch()
+
+    def next_lesson(self, review=False):
+        seen = self.store.seen_words()
+        for index, word in self.catalog.identities():
+            if word not in seen:
+                return self.catalog.lesson_at(index)
+        if not review:
+            raise ValueError('You have explored every word in this catalog. New source data may add words in future updates; revisit your daily lessons meanwhile.')
+        lesson = self.catalog.lesson_at(len(seen) + (datetime.fromisoformat(self.day()).date() - datetime.fromisoformat(self.progress['anchor']).date()).days)
+        lesson['review'] = True
+        return lesson
+
+    def explore(self):
+        with self.lock:
+            # Reserve today's set before assigning an extra word.
+            self.store.daily_lesson(self.day(), lambda: self.next_lesson(review=True))
+            lesson = self.next_lesson()
+            self.store.remember(lesson)
+            self.exploration = lesson
+            self.store.put(exploration=lesson)
+            self.state.update(app='french', french_mode='explore', card=0, browse_day=None)
+            self.persist()
+            self.touch()
+
+    def catalog_loop(self):
+        from .catalog_updates import download_catalog
+        while not self.stop.is_set():
+            last = self.catalog_status.get('checked_at')
+            due = not last or (self.clock() - datetime.fromisoformat(last)).total_seconds() >= 86400
+            if (due and not self.sample) or self.catalog_event.is_set():
+                self.catalog_event.clear()
+                try:
+                    candidate = download_catalog(self.store.directory, self.catalog)
+                    with self.lock:
+                        if candidate:
+                            self.catalog = candidate
+                        self.catalog_status = {'checked_at': self.clock().isoformat(), 'error': None}
+                        self.store.put(catalog_status=self.catalog_status)
+                except Exception as exc:
+                    log.warning('Catalog update failed: %s', exc)
+                    with self.lock:
+                        self.catalog_status = {'checked_at': self.clock().isoformat(),
+                            'error': 'Catalog check failed. Your offline lessons are still available.'}
+                        self.store.put(catalog_status=self.catalog_status)
+            self.catalog_event.wait(60)
 
     def usable_cache(self):
         city = self.settings["city"]
@@ -207,8 +262,14 @@ class Dashboard:
     def snapshot(self):
         with self.lock:
             day = self.state["browse_day"] or self.day()
-            return copy.deepcopy({"settings": self.settings, "selection": self.state,
-                "lesson": self.store.daily_lesson(day, lambda: lessons.lesson_for(day, self.progress["anchor"])), "lesson_day": day,
+            daily = self.store.daily_lesson(day, lambda: self.next_lesson(review=True))
+            exploring = self.state.get('french_mode') == 'explore' and self.exploration is not None
+            seen = self.store.seen_words()
+            remaining = sum(word not in seen for _, word in self.catalog.identities())
+            return copy.deepcopy({'catalog': {**self.catalog_status, 'count': self.catalog.count,
+                'remaining': remaining, 'built_at': self.catalog.metadata['built_at']},
+                "settings": self.settings, "selection": self.state,
+                "lesson": self.exploration if exploring else daily, "lesson_day": "Explore" if exploring else day,
                 "today": self.day(), "first_day": self.progress["anchor"], "weather": self.usable_cache(),
                 "stale": self.is_stale(), "sample": self.sample, "now": self.clock().isoformat(),
                 "mode": self.display.mode, "updating": self.updating,
