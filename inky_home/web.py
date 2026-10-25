@@ -1,17 +1,38 @@
 from flask import Flask, Response, jsonify, render_template, request
 from urllib.parse import urlsplit
+import ipaddress
+import os
+import socket
 
 from .service import RateLimited
 from .weather import search_cities
-from .lessons import CATALOG
 
 
 def create_app(dashboard):
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
 
+    hostname = socket.gethostname().lower().rstrip('.')
+    trusted_names = {'localhost', hostname, hostname.split('.')[0] + '.local'}
+    trusted_names.update(name.strip().lower().rstrip('.') for name in
+                         os.environ.get('INKY_TRUSTED_HOSTS', '').split(',') if name.strip())
+
     @app.before_request
     def same_origin():
+        # DNS rebinding keeps an attacker's browser origin while routing to the Pi.
+        # Accept local IP literals and explicit local names, not arbitrary domains.
+        try:
+            parts = urlsplit('//' + request.host)
+            host = (parts.hostname or '').lower().rstrip('.')
+            if parts.username is not None or parts.password is not None:
+                raise ValueError('Invalid host')
+            if host not in trusted_names:
+                address = ipaddress.ip_address(host)
+                if not (address.is_private or address.is_loopback) or address.is_unspecified or address.is_multicast:
+                    raise ValueError('Host is not local')
+        except ValueError:
+            return jsonify(error='Untrusted host. Use the Pi local address or configured hostname.'), 400
+
         # LAN-only app: prevent a page on another origin issuing control requests.
         if request.method not in ("GET", "HEAD", "OPTIONS"):
             origin = request.headers.get("Origin")

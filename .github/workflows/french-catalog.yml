@@ -15,7 +15,9 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       # Record activity before any source download/build can fail. The built-in
       # token can update this one marker without storing a personal access token.
       - name: Keep monthly updates active
@@ -23,7 +25,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CATALOG_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: python3 scripts/keep_catalog_active.py
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - run: pip install -e .

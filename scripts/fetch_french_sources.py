@@ -3,6 +3,8 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
+import gzip
+import io
 from http.client import IncompleteRead
 import json
 from pathlib import Path
@@ -15,11 +17,34 @@ import certifi
 
 SOURCES = {
     'kaikki': ('kaikki.jsonl.gz', 'https://kaikki.org/dictionary/French/kaikki.org-dictionary-French.jsonl.gz'),
-    'lexique': ('lexique.tsv', 'https://www.lexique.org/databases/Lexique383/Lexique383.tsv'),
+    'lexique': ('lexique.tsv', 'https://github.com/avpa11/inky/releases/download/lexique383-source-v1/Lexique383.tsv.gz'),
     'french': ('fra.tsv.bz2', 'https://downloads.tatoeba.org/exports/per_language/fra/fra_sentences_detailed.tsv.bz2'),
     'english': ('eng.tsv.bz2', 'https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences_detailed.tsv.bz2'),
     'links': ('links.tar.bz2', 'https://downloads.tatoeba.org/exports/links.tar.bz2'),
 }
+
+
+LEXIQUE_ORIGIN = 'https://www.lexique.org/databases/Lexique383/Lexique383.tsv'
+LEXIQUE_SHA256 = '637ba37a767a66679c48371d673ece50cbf541b49a4e40e598963d4f3fbce52b'
+LEXIQUE_GZIP_SHA256 = '5f67a996d936cee550e518e83442823499f8bc1850860a10a11efd218f4b1790'
+
+
+def unpack_lexique(response, out):
+    # This version is fixed reference data. Verify the mirrored bytes before
+    # decompressing, and verify the original TSV before replacing a working copy.
+    compressed = response.read(8_000_001)
+    if len(compressed) > 8_000_000 or hashlib.sha256(compressed).hexdigest() != LEXIQUE_GZIP_SHA256:
+        raise ValueError('Lexique archive checksum mismatch')
+    digest, size = hashlib.sha256(), 0
+    with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as stream:
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            if size > 30_000_000:
+                raise ValueError('Lexique export exceeds size limit')
+            digest.update(chunk)
+            out.write(chunk)
+    if digest.hexdigest() != LEXIQUE_SHA256:
+        raise ValueError('Lexique TSV checksum mismatch')
 
 
 def fetch_once(key, directory, refresh=False):
@@ -32,15 +57,10 @@ def fetch_once(key, directory, refresh=False):
         try:
             with urlopen(url, timeout=60, context=context) as response, temporary.open('wb') as out:
                 modified = response.headers.get('Last-Modified')
-                expected = int(response.headers.get('Content-Length', 0))
-                count = 0
-                while chunk := response.read(1024 * 1024):
-                    count += len(chunk)
-                    if count > 2_000_000_000:
-                        raise ValueError('Unexpectedly large source export')
-                    out.write(chunk)
-                if expected and count != expected:
-                    raise ValueError('Incomplete source download')
+                if key == 'lexique':
+                    unpack_lexique(response, out)
+                else:
+                    copy_export(response, out)
             temporary.replace(target)
         finally:
             temporary.unlink(missing_ok=True)
@@ -48,11 +68,26 @@ def fetch_once(key, directory, refresh=False):
     with target.open('rb') as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
             digest.update(chunk)
-    result = {'file': name, 'url': url, 'bytes': target.stat().st_size,
+    if key == 'lexique' and digest.hexdigest() != LEXIQUE_SHA256:
+        raise ValueError('Cached Lexique TSV checksum mismatch')
+    result = {'file': name, 'url': LEXIQUE_ORIGIN if key == 'lexique' else url,
+              'download_url': url, 'bytes': target.stat().st_size,
               'sha256': digest.hexdigest(), 'retrieved_at': datetime.now(timezone.utc).isoformat(),
               'last_modified': modified}
     print(f'{key}: {result["bytes"]:,} bytes, SHA256 {result["sha256"][:16]}', flush=True)
     return key, result
+
+
+def copy_export(response, out):
+    expected = int(response.headers.get('Content-Length', 0))
+    count = 0
+    while chunk := response.read(1024 * 1024):
+        count += len(chunk)
+        if count > 2_000_000_000:
+            raise ValueError('Unexpectedly large source export')
+        out.write(chunk)
+    if expected and count != expected:
+        raise ValueError('Incomplete source download')
 
 
 def fetch(key, directory, refresh=False):
