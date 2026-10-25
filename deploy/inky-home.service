@@ -1,0 +1,19 @@
+[Unit]
+Description=Inky Home dashboard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=@HOME@/inky-home/current
+Environment=PYTHONUNBUFFERED=1
+ExecStart=@HOME@/inky-home/current/.venv/bin/python -m inky_home --display hardware --host 0.0.0.0 --port 8080 --data-dir @HOME@/inky-home/data
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=45
+NoNewPrivileges=true
+UMask=0077
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=default.target
