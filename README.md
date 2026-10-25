@@ -215,7 +215,7 @@ GitHub's 60-day repository-inactivity cutoff even when you do not touch the repo
 The activity step runs before source downloads/builds, so provider failures do not
 stop the keep-alive. It uses the workflow's built-in, short-lived token; no personal
 token or Pi credentials are stored. Application files and learning history are not
-part of the automated commit. Build failures remain visible in Actions and leave
+part of the automated commit. Source downloads retry temporary failures up to three times. Build failures remain visible in Actions and leave
 the previous release available. Normal GitHub availability and repository permissions
 still apply; manually disabling Actions or blocking its commits will stop the schedule.
 GitHub documents the inactivity rule at
