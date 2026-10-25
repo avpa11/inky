@@ -13,6 +13,20 @@ class Store:
         with self.connect() as db:
             db.execute("CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
             db.execute("CREATE TABLE IF NOT EXISTS daily_french (day TEXT PRIMARY KEY, lesson TEXT NOT NULL)")
+            db.execute('CREATE TABLE IF NOT EXISTS french_seen (word TEXT PRIMARY KEY)')
+            for (payload,) in db.execute('SELECT lesson FROM daily_french'):
+                lesson = json.loads(payload)
+                db.execute('INSERT OR IGNORE INTO french_seen VALUES (?)',
+                           (lesson.get('lexeme_id', lesson['theme'].casefold()),))
+
+    def seen_words(self):
+        with self.connect() as db:
+            return {row[0] for row in db.execute('SELECT word FROM french_seen')}
+
+    def remember(self, lesson):
+        word = lesson.get('lexeme_id', lesson['theme'].casefold())
+        with self.connect() as db:
+            db.execute('INSERT OR IGNORE INTO french_seen VALUES (?)', (word,))
 
     def connect(self):
         return sqlite3.connect(self.path, timeout=5)
@@ -32,9 +46,13 @@ class Store:
         with self.connect() as db:
             row = db.execute('SELECT lesson FROM daily_french WHERE day=?', (day,)).fetchone()
         if row:
-            return json.loads(row[0])
+            lesson = json.loads(row[0])
+            self.remember(lesson)
+            return lesson
         payload = json.dumps(create(), ensure_ascii=False)
         with self.connect() as db:
             db.execute('INSERT OR IGNORE INTO daily_french VALUES (?,?)', (day, payload))
             row = db.execute('SELECT lesson FROM daily_french WHERE day=?', (day,)).fetchone()
-        return json.loads(row[0])
+        lesson = json.loads(row[0])
+        self.remember(lesson)
+        return lesson

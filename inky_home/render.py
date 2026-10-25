@@ -173,7 +173,7 @@ def french_screen(draw, snapshot):
         left = 526 + step * 18
         draw.rectangle((left, 60, left+11, 71),
                        fill=GREEN if step <= card_index else "white", outline=INK, width=2)
-    draw.text((24, 58), snapshot["lesson_day"] + "  ·  " + card["kind"].upper(), font=font(14, True), fill=INK)
+    draw.text((24, 58), snapshot["lesson_day"] + (" · REVIEW" if snapshot["lesson"].get("review") else "") + "  ·  " + card["kind"].upper(), font=font(14, True), fill=INK)
     text_block(draw, card["title"], (24, 89, 552, 67), 36, 19, bold=True)
     text_block(draw, card["meaning"], (24, 157, 552, 43), 21, 15, bold=True)
     draw.rounded_rectangle((18, 202, 582, 294), radius=8, fill="white", outline=INK, width=2)
@@ -183,7 +183,7 @@ def french_screen(draw, snapshot):
     text_block(draw, card["note"], (24, 300, 552, 45), 17, 12)
     if card.get("credit"):
         draw.text((24, 350), card["credit"], font=font(10, True), fill=INK)
-    footer(draw, "Previous", "Next")
+    footer(draw, "Previous", "New word" if snapshot["selection"].get("french_mode") == "explore" and card_index == 2 else "Next")
 
 
 SCREENS = {"weather": weather_screen, "french": french_screen}

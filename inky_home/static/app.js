@@ -30,7 +30,7 @@ async function refresh() {
     }
     const french = state.selection.app === 'french';
     $('#c-label').textContent = french ? 'Previous' : 'Today / 3 days';
-    $('#d-label').textContent = french ? 'Next' : 'Update';
+    $('#d-label').textContent = french ? (state.selection.french_mode === 'explore' && state.selection.card === 2 ? 'New word' : 'Next') : 'Update';
     for (const app of ['weather', 'french']) {
       $('[data-app="' + app + '"]').setAttribute('aria-pressed', String(state.selection.app === app));
       $('#' + app + '-active').textContent = state.selection.app === app ? 'On display' : '↗';
@@ -38,7 +38,8 @@ async function refresh() {
     $('#weather-city').textContent = state.settings.city ? state.settings.city.name : 'Choose your city';
     $('#weather-status').textContent = state.sample ? 'Sample weather · for layout testing only' : state.fetching ? 'Fetching weather…' : state.weather_error ? state.weather_error : state.stale ? 'Cached forecast is out of date.' : state.weather ? 'Weather updated ' + new Date(state.weather.fetched_at).toLocaleString() : 'Choose a city to get your forecast.';
     $('#device-errors').textContent = [state.display_error, state.button_error].filter(Boolean).join('\n');
-    $('#lesson-title').textContent = state.selection.browse_day ? 'French · ' + state.lesson_day : "Today's French";
+    $('#catalog-status').textContent = `${state.catalog.remaining} unseen words · ${state.catalog.count} in catalog. ` + (state.catalog.error || (state.catalog.checked_at ? 'Last checked ' + new Date(state.catalog.checked_at).toLocaleString() : 'Offline catalog ready.'));
+    $('#lesson-title').textContent = state.selection.french_mode === 'explore' ? 'Explore French' : state.selection.browse_day ? 'French · ' + state.lesson_day : "Today's French";
     $('#lesson-theme').textContent = state.lesson.theme;
     const lessonKey = state.lesson_day + ':' + state.lesson.stable_id;
     if (lessonVersion !== lessonKey) {
@@ -104,4 +105,7 @@ $('#city-form').addEventListener('submit', async event => {
 });
 $('#history-form').addEventListener('submit', event => { event.preventDefault(); act('/api/french/day', {day:$('#history-day').value}); });
 $('#today').addEventListener('click', () => act('/api/french/day', {day:null}));
+$('#explore').addEventListener('click', () => act('/api/french/explore', {}));
+$('#daily').addEventListener('click', () => act('/api/french/day', {day:null}));
+$('#catalog-check').addEventListener('click', () => act('/api/french/update', {}, 'Catalog check queued.'));
 refresh(); setInterval(refresh, 3000);
