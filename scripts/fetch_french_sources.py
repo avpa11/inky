@@ -3,9 +3,12 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 import hashlib
+from http.client import IncompleteRead
 import json
 from pathlib import Path
 import ssl
+import time
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 import certifi
@@ -19,7 +22,7 @@ SOURCES = {
 }
 
 
-def fetch(key, directory, refresh=False):
+def fetch_once(key, directory, refresh=False):
     name, url = SOURCES[key]
     target = directory / name
     modified = None
@@ -50,6 +53,19 @@ def fetch(key, directory, refresh=False):
               'last_modified': modified}
     print(f'{key}: {result["bytes"]:,} bytes, SHA256 {result["sha256"][:16]}', flush=True)
     return key, result
+
+
+def fetch(key, directory, refresh=False):
+    for attempt in range(3):
+        try:
+            return fetch_once(key, directory, refresh)
+        except (URLError, TimeoutError, ConnectionError, IncompleteRead) as exc:
+            if isinstance(exc, HTTPError) and exc.code not in (408, 429, 500, 502, 503, 504):
+                raise
+            if attempt == 2:
+                raise
+            print(f'{key}: temporary download failure; retrying ({attempt + 2}/3)', flush=True)
+            time.sleep(3 * (attempt + 1))
 
 
 def main():
