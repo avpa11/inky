@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f3ec">
+  <title>Inky Home</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<header><a class="brand" href="/">inky<span>home</span><i>●</i></a><span id="connection" class="pill">Connecting…</span></header>
+<main>
+  <div class="intro"><div><p class="eyebrow">A SMALL WINDOW INTO YOUR DAY</p><h1>Make room for<br>the little things.</h1><p>Local weather. A little French. Something worth a glance.</p></div><div class="edition">YOUR HOME, AT A GLANCE<br><strong>600 × 400</strong><br>SIX COLORS. NO RUSH.</div></div>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <div class="layout">
+    <section class="panel display-panel" aria-labelledby="display-title">
+      <div class="panel-top"><h2 id="display-title">On your Inky</h2><span id="mode" class="subtle">Preview</span></div>
+      <div class="frame"><img id="preview" alt="The last screen successfully sent to the display" width="600" height="400"><div id="preview-wait">Preparing your first screen…</div></div>
+      <div class="screen-status"><span><i id="status-dot">●</i> <span id="display-status">Preparing screen</span></span><span id="updated">—</span></div>
+      <div class="buttons" aria-label="Physical button controls">
+        <button data-button="A"><kbd>A</kbd><span>Weather</span></button>
+        <button data-button="B"><kbd>B</kbd><span>French</span></button>
+        <button data-button="C"><kbd>C</kbd><span id="c-label">Today / 3 days</span></button>
+        <button data-button="D"><kbd>D</kbd><span id="d-label">Update</span></button>
+      </div>
+      <p class="hint">These work just like the four buttons on your display. A real e-ink refresh takes a moment.</p>
+      <div id="device-errors" class="error" role="status"></div>
+    </section>
+    <aside>
+      <section class="panel apps-panel" aria-labelledby="apps-title">
+        <p class="eyebrow">TWO WAYS TO START YOUR DAY</p><h2 id="apps-title">Your apps</h2>
+        <button class="app-card" data-app="weather"><span class="app-icon sun">☀</span><span><strong>Weather</strong><small id="weather-city">Choose your city</small></span><span class="app-state" id="weather-active">↗</span></button>
+        <button class="app-card" data-app="french"><span class="app-icon french">à</span><span><strong>Un peu de français</strong><small>B1 · Three small lessons a day</small></span><span class="app-state" id="french-active">↗</span></button>
+        <p id="weather-status" class="hint">Weather updates hourly. French changes each morning.</p>
+      </section>
+      <section class="panel lesson-panel" aria-labelledby="lesson-title">
+        <p class="eyebrow">KEEP A LITTLE CURIOSITY</p><h2 id="lesson-title">Today's French</h2>
+        <p id="lesson-theme" class="lesson-theme">Your daily set is on its way.</p>
+        <div id="lesson-cards"></div>
+        <details><summary>Revisit a day</summary><form id="history-form"><label for="history-day">Lesson date</label><div class="inline"><input type="date" id="history-day" required><button type="submit">Open</button></div></form><button id="today" class="text-button">Back to today's set</button></details>
+      </section>
+    </aside>
+  </div>
+  <section class="panel settings-panel" aria-labelledby="settings-title">
+    <div><p class="eyebrow">MAKE YOURSELF AT HOME</p><h2 id="settings-title">The essentials</h2></div>
+    <div class="settings-grid">
+      <div><form id="city-form"><label for="city-query">Weather location</label><div class="inline"><input id="city-query" placeholder="Search a city…" minlength="2" maxlength="100" required><button type="submit" id="search-button">Search</button></div></form><div id="city-results" aria-live="polite"></div><p class="hint">Choose a match to save it. No location tracking.</p></div>
+      <form id="settings-form"><div class="field-row"><div><label for="units">Temperature</label><select id="units"><option value="C">Celsius · °C</option><option value="F">Fahrenheit · °F</option></select></div><div><label for="rollover">New French set at</label><input type="time" id="rollover" value="07:00" required></div></div><label for="timezone">Timezone</label><input id="timezone" placeholder="America/Los_Angeles" required><p class="hint">Uses the city's timezone when you choose a new location.</p><button type="submit" class="primary">Save preferences</button></form>
+    </div>
+  </section>
+</main>
+<footer><span>Less scrolling. More noticing.</span><span>Weather by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> · <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a><br>City search: GeoNames via Open-Meteo</span></footer>
+</body>
+</html>
