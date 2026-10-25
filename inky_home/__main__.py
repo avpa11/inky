@@ -8,6 +8,7 @@ import signal
 from .display import Buttons, InkyDisplay, PreviewDisplay
 from .service import Dashboard
 from .store import Store
+from .lessons import CATALOG
 from .weather import SampleWeatherClient, WeatherClient, validate_city
 from .web import create_app
 
@@ -22,6 +23,7 @@ def main():
     args = parser.parse_args()
     if args.sample_weather and args.display == "hardware":
         parser.error("Sample weather is only supported in preview mode")
+    CATALOG.validate()
     store = Store(args.data_dir)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     handler = RotatingFileHandler(Path(args.data_dir) / "home.log", maxBytes=500_000, backupCount=2)

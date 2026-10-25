@@ -40,12 +40,23 @@ async function refresh() {
     $('#device-errors').textContent = [state.display_error, state.button_error].filter(Boolean).join('\n');
     $('#lesson-title').textContent = state.selection.browse_day ? 'French · ' + state.lesson_day : "Today's French";
     $('#lesson-theme').textContent = state.lesson.theme;
-    if (lessonVersion !== state.lesson_day) {
-    lessonVersion = state.lesson_day;
+    const lessonKey = state.lesson_day + ':' + state.lesson.stable_id;
+    if (lessonVersion !== lessonKey) {
+    lessonVersion = lessonKey;
     $('#lesson-cards').replaceChildren(...state.lesson.cards.map(card => {
       const item = document.createElement('div'); item.className = 'lesson-item';
       for (const [tag, text] of [['small',card.kind],['strong',card.title],['p',card.meaning],['p',card.example],['p',card.translation],['p',card.note]]) {
         const node = document.createElement(tag); node.textContent = text; item.append(node);
+      }
+      if (card.sources && card.sources.length) {
+        const details = document.createElement('details');
+        const summary = document.createElement('summary'); summary.textContent = 'Sources and licenses'; details.append(summary);
+        for (const source of card.sources) {
+          const p = document.createElement('p');
+          const link = document.createElement('a'); link.href = source.url; link.textContent = source.name;
+          link.target = '_blank'; link.rel = 'noopener'; p.append(link, ' · ' + source.license); details.append(p);
+        }
+        item.append(details);
       }
       return item;
     }));

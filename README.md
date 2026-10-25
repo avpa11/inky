@@ -1,8 +1,10 @@
 # Inky Home
 
-A small local dashboard for **Raspberry Pi Zero 2 W + Inky Impression 4-inch Spectra 6**. Weather and 90 days of B1 French, controlled from four buttons or a phone. No cloud account, Docker, or frontend build is needed.
+A small local dashboard for **Raspberry Pi Zero 2 W + Inky Impression 4-inch Spectra 6**. Weather and offline French vocabulary, controlled from four buttons or a phone. No cloud account, Docker, or frontend build is needed.
 
 ![Weather and French previews using sample data](docs/preview.png)
+
+[Preview attribution](docs/preview-sources.md).
 
 ## Source and runtime locations
 
@@ -86,7 +88,7 @@ Keep VS Code **Remote SSH disconnected**. Edit the source locally and transfer i
    ./scripts/deploy.sh user@small.local
    ```
 
-   Each deployment uploads a separate release, installs a virtual environment, preserves the previous release, and restarts a **systemd user service**. `sudo loginctl enable-linger` lets the service start at boot without an SSH login. Installation may prompt for your Pi password. The service runs as your ordinary user, never as root.
+   Each deployment uploads a separate release, installs a virtual environment, validates the French catalog, backs up the state database, preserves the previous release, and restarts a **systemd user service**. `sudo loginctl enable-linger` lets the service start at boot without an SSH login. Installation may prompt for your Pi password. The service runs as your ordinary user, never as root.
 
 4. Open **http://small.local:8080** (or `http://PI_IP:8080`) on your phone or laptop. Search for a city, select a match, and choose units/timezone. A city change defaults the timezone to that city; a manual timezone preference can be saved afterward.
 
@@ -115,7 +117,31 @@ Weather uses colored sun, cloud, rain, drizzle, fog, snow, and storm illustratio
 
 Weather is fetched hourly, with a one-minute manual refresh limit and five-minute retries after failures. The service keeps the last successful forecast, labels it stale after an hour or a failed request, and never displays another city's cache. Missing fields use a dash. Sample and live caches are isolated. Weather dates and forecast timestamps use the selected city’s local time; the configurable timezone controls French rollover. Current precipitation probability comes from the forecast hour matching the current weather reading; daily views show the daily maximum.
 
-French is fully offline: **90 sets / 270 cards**, at B1 level, with English explanations. Thirty grammar topics return at 30-day intervals with new examples. Nouns include gender; usage notes indicate register. The course begins on first startup, switches at 07:00 in the configured timezone, and repeats after day 90. You can change the rollover time, browse past days, or return to today's set. A daily rollover returns French browsing to today's first card, without changing the selected app. Reboot preserves the chosen app and card. Lessons are authored study material; they do not certify CEFR attainment.
+French is fully offline and reads a compact SQLite catalog built from **Tatoeba + Kaikki/Wiktionary + Lexique 3.83**. Each day has three cards: vocabulary, a different translated example, and a short usage note derived from dictionary metadata. The bundled catalog currently contains **730 daily sets / 2,190 cards**. Definitions and frequency data are imported; usage rules are authored application code. Source text is not rewritten. Intermediate difficulty is estimated using frequency and sentence-length filters; it is not a verified CEFR B1 course, and lexical overlap cannot guarantee sense disambiguation.
+
+Nouns show gender where available. Cards include source/contributor links and licenses in the web interface; `/french/sources` lists corpus metadata and checksums. The catalog is read-only and requires no network access or corpus-processing libraries on the Pi. The local user database pins each day's selected cards, preserving viewed days across future catalog updates. Existing city, selected app, anchor day, and card position are retained when upgrading.
+
+New sets begin at 07:00 in the configured timezone. You can change the rollover time, browse previous days, or return to today. A rollover selects today's first card without changing the selected app. The catalog cycles after its final set. No `french.json` file or fixed authored deck is used.
+
+## Rebuild the French database on your Mac
+
+The ready-to-use database is committed in `inky_home/data/french.sqlite3` and included in the Python package. Ordinary installs, previews, and Pi deployments do **not** download corpora.
+
+To refresh the content, from this Mac checkout with `.venv` active:
+
+```sh
+python scripts/fetch_french_sources.py
+python scripts/build_french_db.py
+python -m unittest discover -s tests -v
+```
+
+The downloader retrieves official Kaikki, Lexique and Tatoeba weekly bulk exports into ignored `var-corpus/` (roughly 280 MB compressed). Its `downloads.json` records URLs, timestamps and SHA256 checksums. Use `--refresh` to download newer exports; without it, cached files are reused. Keep the raw files and manifest if exact input reproducibility matters: upstream export URLs are mutable.
+
+The builder verifies checksums, reads archives without extracting paths, filters low-quality/obsolete entries and long/multiple sentences, favors single-category headwords, matches translated examples using English gloss overlap, and selects distinct examples. These are heuristics; source content is community-contributed and can contain errors. Lexique ranks 500–10,000 are a selection aid rather than CEFR labels. You can adjust `--minimum-rank`, `--maximum-rank`, and `--limit` (default 730). A build with fewer than `--minimum-lessons` (default 365) fails without replacing the existing catalog. Successful builds replace it atomically.
+
+Download/import work happens on the Mac. The Pi receives only the small catalog and attribution notice. Raw exports and personal progress are excluded from GitHub. See [dataset licenses and attribution](inky_home/data/SOURCES.md). The adapted dictionary/frequency catalog and authored usage notes are CC BY-SA 4.0; individual Tatoeba texts retain CC BY 2.0 FR and contributor attribution. Audio and dictionary example quotations are not used.
+
+When updating content, include both `inky_home/data/french.sqlite3` and `inky_home/data/SOURCES.md` in the Git commit. Already-viewed daily cards stay pinned in the user database; upcoming days use the current catalog. Restart the local preview after rebuilding. A fresh `--data-dir var-catalog-preview` lets you inspect the new catalog immediately without using existing daily assignments.
 
 ## Updates, rollback, and logs
 
@@ -137,7 +163,7 @@ systemctl --user stop inky-home
 ~/inky-home/current/.venv/bin/python -m inky_home --display hardware --host 0.0.0.0 --data-dir ~/inky-home/data
 ```
 
-After diagnosis, exit the foreground process and start the service again. Only one process may own the display/GPIO. Back up the data directory while the service is stopped; restore it with the service stopped too. There are no schema migrations in v1, so rollback uses the same data.
+After diagnosis, exit the foreground process and start the service again. Only one process may own the display/GPIO. Back up the data directory while the service is stopped; restore it with the service stopped too. The corpus upgrade adds a `daily_french` table to the existing user database. Older releases ignore that table, so rollback retains settings and progress. Pre-deployment database backups are kept in `~/inky-home/data/backups/`.
 
 ## Verification
 
@@ -145,19 +171,19 @@ After diagnosis, exit the foreground process and start the service again. Only o
 python -m unittest discover -s tests -v
 ```
 
-Tests cover all 270 card renders, long city names, absent forecast fields, units, API validation, timezone/DST rollover, restarts, cache isolation, provider outages, city changes in flight, weather rate limiting, and responsive controls with serialized/coalesced refreshes.
+Tests cover all database-backed card renders, corpus imports, attribution, checksum failures, atomic rebuilds, pinned history and state migration, long city names, absent forecast fields, units, API validation, timezone/DST rollover, restarts, cache isolation, provider outages, city changes in flight, weather rate limiting, and responsive controls with serialized/coalesced refreshes.
 
 On the Pi, also verify A–D individually, update the real panel, disconnect internet and check cached weather/French, and reboot to confirm automatic service startup. These hardware checks cannot be replaced by Mac preview tests.
 
 ## Architecture / adding an app
 
 - `service.py`: persisted state, scheduler, independent weather and display workers. Locks cover short state changes; never network or hardware I/O.
-- `weather.py` and `lessons.py`: data adapters; `render.py`: RGB 600 × 400 screen renderers. `display.py`: hardware/preview output and GPIO edges.
+- `weather.py` and `lessons.py`: runtime data adapters; `corpus.py`: Mac-side corpus builder; `render.py`: RGB 600 × 400 screen renderers. `display.py`: hardware/preview output and GPIO edges.
 - `web.py`: local JSON endpoints and PNG preview; plain HTML/CSS/JS frontend. Waitress serves one process with four HTTP threads.
 
 Add an app's data adapter and renderer to `SCREENS`, then add its selection/action handling and controls. Arbitrary uploaded code is not supported. The 4-inch resolution is checked at hardware startup; other Inky sizes need new layouts.
 
-API: `GET /api/status`, `GET /api/preview.png`, `GET /api/cities?q=...`; JSON `POST /api/app {"app":"weather|french"}`, `/api/action {"button":"A|B|C|D"}`, `/api/settings` (partial settings), and `/api/french/day {"day":"YYYY-MM-DD"}` (or null for today). Errors use `{ "error": "…" }`, invalid input HTTP 400, manual rate limit 429, city search outage 502. Preview is 503 until the first successful render.
+API: `GET /api/status`, `GET /api/preview.png`, `GET /api/cities?q=...`; JSON `POST /api/app {"app":"weather|french"}`, `/api/action {"button":"A|B|C|D"}`, `/api/settings` (partial settings), and `/api/french/day {"day":"YYYY-MM-DD"}` (or null for today). Errors use `{ "error": "…" }`, invalid input HTTP 400, manual rate limit 429, city search outage 502. Preview is 503 until the first successful render. `GET /api/french/sources` returns catalog metadata and source/license records; `/french/sources` is the human-readable version.
 
 This app is for a **trusted home LAN** without login. Keep it off public networks; don't forward port 8080. State-changing requests require JSON and reject cross-origin browser controls. No continuous location tracking or external analytics. Weather and geocoding require internet; local UI and French do not. Time accuracy after reboot depends on the Pi's system clock/NTP.
 

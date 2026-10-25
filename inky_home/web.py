@@ -3,6 +3,7 @@ from urllib.parse import urlsplit
 
 from .service import RateLimited
 from .weather import search_cities
+from .lessons import CATALOG
 
 
 def create_app(dashboard):
@@ -39,6 +40,14 @@ def create_app(dashboard):
     @app.get("/")
     def index():
         return render_template("index.html")
+
+    @app.get("/french/sources")
+    def french_sources():
+        return render_template('french_sources.html', sources=CATALOG.sources(), metadata=CATALOG.metadata)
+
+    @app.get("/api/french/sources")
+    def french_sources_api():
+        return jsonify(sources=CATALOG.sources(), metadata=CATALOG.metadata)
 
     @app.get("/api/status")
     def status():
