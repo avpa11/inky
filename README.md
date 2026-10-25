@@ -209,9 +209,17 @@ is never uploaded. Existing daily assignments are migrated and preserved.
 3rd of each month at 09:23 UTC, or with **Run workflow** on GitHub. It publishes up to
 10,000 eligible sets (the actual matching count can be smaller) as a release with
 attribution and a SHA-256 manifest. No Pi credentials are in GitHub. The workflow
-publishes data releases only; it does not commit to main. GitHub may disable scheduled
-workflows after 60 days without repository activity; re-enable it in Actions if needed.
-Build failures are visible in Actions and leave the previous release available.
+publishes data releases and records a monthly activity timestamp in
+`.github/catalog-heartbeat.json` on the default branch. That small commit prevents
+GitHub's 60-day repository-inactivity cutoff even when you do not touch the repo.
+The activity step runs before source downloads/builds, so provider failures do not
+stop the keep-alive. It uses the workflow's built-in, short-lived token; no personal
+token or Pi credentials are stored. Application files and learning history are not
+part of the automated commit. Build failures remain visible in Actions and leave
+the previous release available. Normal GitHub availability and repository permissions
+still apply; manually disabling Actions or blocking its commits will stop the schedule.
+GitHub documents the inactivity rule at
+https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule.
 
 The Pi checks GitHub at startup and then daily, on a separate worker. **Check for new
 content** queues an immediate check. Downloads have timeouts and a 20 MiB limit; the
